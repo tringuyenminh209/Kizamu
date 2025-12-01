@@ -1,0 +1,1496 @@
+// ============================================================================
+// Database Schema for TodoApp (DOL LEAF)
+// Generated from Laravel Migrations
+// Last Updated: 2025-12-02
+// ============================================================================
+
+// ============================================================================
+// SECTION 1: USER MANAGEMENT
+// ============================================================================
+
+Table users {
+  id bigint [pk, increment]
+  name varchar(255) [not null, note: 'User name']
+  email varchar(255) [not null, unique, note: 'Email address']
+  fcm_token varchar(500) [null, note: 'Firebase Cloud Messaging token']
+  email_verified_at timestamp [null, note: 'Email verification timestamp']
+  password varchar(255) [not null, note: 'Hashed password']
+  language enum('vi', 'en', 'ja') [not null, default: 'ja', note: 'UI language preference']
+  timezone varchar(50) [not null, default: 'Asia/Tokyo', note: 'User timezone']
+  avatar_url varchar(500) [null, note: 'Avatar image URL']
+  remember_token varchar(100) [null]
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    email [name: 'idx_users_email']
+    fcm_token [name: 'idx_users_fcm_token']
+    created_at [name: 'idx_users_created_at']
+  }
+
+  Note: 'Core user authentication and profile table'
+}
+
+Table user_profiles {
+  id bigint [pk, increment]
+  user_id bigint [not null, unique, ref: > users.id]
+  goal_type enum('learning', 'work', 'health') [null, note: 'User primary goal']
+  preferred_time enum('morning', 'morning_late', 'afternoon', 'evening') [null, note: 'Preferred work time']
+  notification_enabled boolean [not null, default: true]
+  onboarding_completed boolean [not null, default: false]
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    user_id [unique, name: 'idx_user_profiles_user_id']
+    onboarding_completed [name: 'idx_user_profiles_onboarding']
+  }
+
+  Note: 'User onboarding and profile data'
+}
+
+Table user_settings {
+  id bigint [pk, increment]
+  user_id bigint [not null, unique, ref: > users.id]
+
+  // Appearance
+  theme enum('light', 'dark', 'auto') [not null, default: 'auto']
+
+  // Pomodoro Settings
+  default_focus_minutes int [not null, default: 25, note: 'Default focus duration (minutes)']
+  pomodoro_duration int [not null, default: 25, note: 'Pomodoro timer duration (minutes)']
+  break_minutes int [not null, default: 5, note: 'Short break duration (minutes)']
+  long_break_minutes int [not null, default: 15, note: 'Long break duration (minutes)']
+  auto_start_break boolean [not null, default: false, note: 'Auto-start breaks']
+  block_notifications boolean [not null, default: true, note: 'Block notifications during focus']
+  background_sound boolean [not null, default: false, note: 'Play background sound during focus']
+
+  // Daily Goals
+  daily_target_tasks int [not null, default: 3, note: 'Daily target task count']
+
+  // Notifications
+  notification_enabled boolean [not null, default: true]
+  push_notifications boolean [not null, default: true, note: 'Enable push notifications']
+  daily_reminders boolean [not null, default: true, note: 'Enable daily reminders']
+  goal_reminders boolean [not null, default: false, note: 'Enable goal reminders']
+  reminder_times json [null, note: 'Reminder times (JSON array)']
+
+  // Localization
+  language enum('vi', 'en', 'ja') [not null, default: 'vi']
+  timezone varchar(50) [not null, default: 'UTC']
+
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    user_id [unique, name: 'idx_user_settings_user_id']
+  }
+
+  Note: 'User preferences and settings for the application'
+}
+
+Table user_stats_cache {
+  id bigint [pk, increment]
+  user_id bigint [not null, unique, ref: > users.id]
+
+  // Task Statistics
+  total_tasks int [not null, default: 0]
+  completed_tasks int [not null, default: 0]
+  pending_tasks int [not null, default: 0]
+  in_progress_tasks int [not null, default: 0]
+  completion_rate decimal(5,2) [not null, default: 0]
+
+  // Focus Session Statistics
+  total_focus_time int [not null, default: 0, note: 'Total lifetime focus minutes']
+  total_focus_sessions int [not null, default: 0]
+  average_session_duration int [not null, default: 0]
+
+  // Streak Statistics
+  current_streak int [not null, default: 0]
+  longest_streak int [not null, default: 0]
+
+  // Cache metadata
+  last_calculated_at timestamp [null]
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    user_id [unique, name: 'idx_user_stats_cache_user_id']
+    last_calculated_at [name: 'idx_user_stats_cache_last_calculated']
+  }
+
+  Note: 'Cached user statistics for performance optimization'
+}
+
+// ============================================================================
+// SECTION 2: LEARNING PATHS & MILESTONES
+// ============================================================================
+
+Table learning_paths {
+  id bigint [pk, increment]
+  user_id bigint [not null, ref: > users.id]
+
+  // Path Information
+  title varchar(255) [not null, note: 'Learning goal title']
+  description text [null, note: 'Detailed description']
+  goal_type enum('career', 'skill', 'certification', 'hobby') [not null, default: 'skill', note: 'Goal type']
+
+  // Timeline
+  target_start_date date [null, note: 'Target start date']
+  target_end_date date [null, note: 'Target completion date']
+
+  // Progress
+  status enum('active', 'paused', 'completed', 'abandoned') [not null, default: 'active', note: 'Current status']
+  progress_percentage decimal(5,2) [not null, default: 0.00, note: 'Progress percentage (0-100)']
+
+  // AI Generation
+  is_ai_generated boolean [not null, default: false, note: 'AI-generated roadmap']
+  ai_prompt text [null, note: 'AI generation prompt']
+
+  // Time Management
+  estimated_hours_total int [null, note: 'Total estimated learning hours']
+  actual_hours_total int [not null, default: 0, note: 'Actual learning hours']
+
+  // Tags & Appearance
+  tags json [null, note: 'Tag array']
+  color varchar(7) [not null, default: '#0FA968', note: 'Color (HEX)']
+  icon varchar(50) [null, note: 'Icon name']
+
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    (user_id, status) [name: 'idx_user_status']
+    (user_id, created_at) [name: 'idx_user_created']
+  }
+
+  Note: 'Long-term learning goals and roadmaps'
+}
+
+Table learning_milestones {
+  id bigint [pk, increment]
+  learning_path_id bigint [not null, ref: > learning_paths.id]
+
+  // Milestone Information
+  title varchar(255) [not null, note: 'Milestone title']
+  description text [null, note: 'Detailed description']
+  sort_order int [not null, default: 0, note: 'Display order']
+
+  // Timeline
+  target_start_date date [null, note: 'Target start date']
+  target_end_date date [null, note: 'Target completion date']
+  completed_at timestamp [null, note: 'Completion timestamp']
+
+  // Progress
+  status enum('pending', 'in_progress', 'completed', 'skipped') [not null, default: 'pending', note: 'Current status']
+  progress_percentage decimal(5,2) [not null, default: 0.00, note: 'Progress percentage']
+
+  // Estimation
+  estimated_hours int [null, note: 'Estimated hours']
+  actual_hours int [not null, default: 0, note: 'Actual hours']
+
+  // Deliverables & Assessment
+  deliverables json [null, note: 'Deliverable list']
+  self_assessment tinyint [null, note: 'Self-assessment (1-5)']
+  notes text [null, note: 'Notes']
+
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    (learning_path_id, sort_order) [name: 'idx_path_order']
+    (learning_path_id, status) [name: 'idx_path_status']
+  }
+
+  Note: 'Learning path milestones - breaks down learning paths into manageable phases'
+}
+
+Table study_schedules {
+  id bigint [pk, increment]
+  learning_path_id bigint [not null, ref: > learning_paths.id]
+
+  // Study Time Settings
+  study_time time [not null, note: 'e.g., 19:30:00']
+  day_of_week tinyint [not null, note: '0=Sunday, 1=Monday, ..., 6=Saturday']
+  duration_minutes int [not null, default: 60, note: 'Default 1 hour']
+
+  // Status
+  is_active boolean [not null, default: true, note: 'Can temporarily disable a schedule']
+
+  // Reminder Settings
+  reminder_before_minutes int [not null, default: 30, note: 'Remind 30 mins before']
+  reminder_enabled boolean [not null, default: true]
+
+  // Tracking
+  completed_sessions int [not null, default: 0, note: 'Number of times user studied']
+  missed_sessions int [not null, default: 0, note: 'Number of times user missed']
+  last_studied_at date [null, note: 'Last time user studied on this schedule']
+
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    (learning_path_id, day_of_week) [name: 'idx_learning_path_day']
+    (learning_path_id, is_active) [name: 'idx_learning_path_active']
+    (learning_path_id, day_of_week, study_time) [unique, name: 'unique_learning_path_day_time']
+  }
+
+  Note: 'Weekly recurring study schedules for learning paths'
+}
+
+// ============================================================================
+// SECTION 3: PROJECTS & TASKS
+// ============================================================================
+
+Table projects {
+  id bigint [pk, increment]
+  user_id bigint [not null, ref: > users.id]
+
+  // Project Information
+  name_en varchar(255) [not null, note: 'Project name (English)']
+  name_ja varchar(255) [not null, note: 'Project name (Japanese)']
+  description_en text [null, note: 'Description (English)']
+  description_ja text [null, note: 'Description (Japanese)']
+
+  // Status & Timeline
+  status varchar(255) [not null, default: 'active', note: 'Project status']
+  start_date date [null, note: 'Start date']
+  end_date date [null, note: 'End date']
+
+  // Progress & Appearance
+  progress_percentage decimal(5,2) [not null, default: 0, note: 'Progress percentage']
+  color varchar(7) [not null, default: '#6366f1', note: 'Color code']
+  is_active boolean [not null, default: true, note: 'Is active flag']
+
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    (user_id, is_active) [name: 'idx_user_is_active']
+    (user_id, status) [name: 'idx_user_status']
+  }
+
+  Note: 'Project management for organizing tasks'
+}
+
+Table tasks {
+  id bigint [pk, increment]
+  user_id bigint [not null, ref: > users.id]
+  project_id bigint [null, ref: > projects.id]
+  learning_milestone_id bigint [null, ref: > learning_milestones.id]
+
+  // Task Information
+  title varchar(255) [not null, note: 'Task title']
+  category enum('study', 'work', 'personal', 'other') [not null, default: 'other', note: 'Task category']
+  description text [null, note: 'Detailed description']
+
+  // Priority & Energy
+  priority tinyint [not null, default: 3, note: 'Priority (1-5, 5 is highest)']
+  energy_level enum('low', 'medium', 'high') [not null, default: 'medium', note: 'Required energy level']
+
+  // Time Estimation
+  estimated_minutes int [null, note: 'Estimated time (minutes)']
+  deadline timestamp [null, note: 'Deadline']
+  scheduled_time time [null, note: 'Scheduled start time (HH:MM:SS)']
+
+  // Status
+  status enum('pending', 'in_progress', 'completed', 'cancelled') [not null, default: 'pending', note: 'Task status']
+  is_abandoned boolean [not null, default: false, note: 'Abandoned task flag']
+
+  // AI Features
+  ai_breakdown_enabled boolean [not null, default: false, note: 'AI breakdown enabled']
+
+  // Deep Work Mode Features
+  requires_deep_focus boolean [not null, default: false, note: 'Requires deep work mode']
+  allow_interruptions boolean [not null, default: true, note: 'Allow interruptions']
+  focus_difficulty int [not null, default: 3, note: 'Focus difficulty (1-5: shallow to ultra-deep)']
+
+  // Time Management Features
+  warmup_minutes int [null, note: 'Warmup time before task (minutes)']
+  cooldown_minutes int [null, note: 'Review time after task (minutes)']
+  recovery_minutes int [null, note: 'Recovery time after task (minutes)']
+
+  // Context Tracking
+  last_focus_at timestamp [null, note: 'Last time focused on this task']
+  last_active_at timestamp [null, note: 'Last active time (heartbeat update)']
+  total_focus_minutes int [not null, default: 0, note: 'Total focus time (minutes)']
+  distraction_count int [not null, default: 0, note: 'Number of recorded distractions']
+  abandonment_count int [not null, default: 0, note: 'Number of times task was abandoned']
+
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    (user_id, status) [name: 'idx_user_status']
+    (project_id, status) [name: 'idx_project_status']
+    learning_milestone_id [name: 'idx_learning_milestone']
+    deadline [name: 'idx_deadline']
+    priority [name: 'idx_priority']
+    (user_id, created_at) [name: 'idx_user_created']
+    (user_id, scheduled_time) [name: 'idx_user_scheduled_time']
+    (status, last_active_at) [name: 'idx_status_last_active_at']
+    (user_id, is_abandoned) [name: 'idx_user_is_abandoned']
+  }
+
+  Note: 'Main tasks table - core of the application'
+}
+
+Table subtasks {
+  id bigint [pk, increment]
+  task_id bigint [not null, ref: > tasks.id]
+
+  // Subtask Info
+  title varchar(255) [not null, note: 'Subtask title']
+  is_completed boolean [not null, default: false, note: 'Completion status']
+  estimated_minutes int [null, note: 'Estimated time (minutes)']
+
+  // Ordering
+  sort_order int [not null, default: 0, note: 'Display order']
+
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    (task_id, sort_order) [name: 'idx_task_sort_order']
+    (task_id, is_completed) [name: 'idx_task_is_completed']
+  }
+
+  Note: 'Subtasks for breaking down tasks into smaller steps'
+}
+
+Table task_abandonments {
+  id bigint [pk, increment]
+  user_id bigint [not null, ref: > users.id]
+  task_id bigint [not null, ref: > tasks.id]
+  focus_session_id bigint [null, ref: > focus_sessions.id, note: 'Related focus session']
+
+  // Timing
+  started_at timestamp [not null, note: 'Task start time']
+  last_active_at timestamp [not null, note: 'Last active time']
+  abandoned_at timestamp [not null, note: 'Abandonment detection time']
+  duration_minutes int [not null, note: 'Work duration (minutes)']
+
+  // Abandonment Details
+  abandonment_type enum('app_switched', 'long_inactivity', 'manual', 'deadline_passed') [not null, default: 'long_inactivity', note: 'Abandonment type']
+  inactivity_minutes int [null, note: 'Inactivity period (minutes)']
+  auto_detected boolean [not null, default: true, note: 'Auto-detected flag']
+  reason text [null, note: 'Abandonment reason (user input)']
+
+  // Resume Tracking
+  resumed boolean [not null, default: false, note: 'Resumed later flag']
+  resumed_at timestamp [null, note: 'Resume time']
+
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    (user_id, abandoned_at) [name: 'idx_user_abandoned_at']
+    (task_id, abandoned_at) [name: 'idx_task_abandoned_at']
+    abandonment_type [name: 'idx_abandonment_type']
+    (user_id, created_at) [name: 'idx_user_created']
+  }
+
+  Note: 'Tracks task abandonment events for analysis and recovery'
+}
+
+Table tags {
+  id bigint [pk, increment]
+  name varchar(100) [not null, unique, note: 'Tag name']
+  color varchar(7) [not null, default: '#0FA968', note: 'Color (HEX)']
+  icon varchar(50) [null, note: 'Icon name']
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    name [name: 'idx_tags_name']
+  }
+
+  Note: 'Tags for categorizing tasks'
+}
+
+Table task_tags {
+  id bigint [pk, increment]
+  task_id bigint [not null, ref: > tasks.id]
+  tag_id bigint [not null, ref: > tags.id]
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    (task_id, tag_id) [unique, name: 'idx_task_tag_unique']
+    tag_id [name: 'idx_tag_id']
+  }
+
+  Note: 'Many-to-many relationship between tasks and tags'
+}
+
+// ============================================================================
+// SECTION 4: KNOWLEDGE BASE
+// ============================================================================
+
+Table knowledge_categories {
+  id bigint [pk, increment]
+  user_id bigint [not null, ref: > users.id]
+  parent_id bigint [null, ref: > knowledge_categories.id, note: 'Parent category ID (hierarchical structure)']
+
+  // Category Information
+  name varchar(255) [not null, note: 'Category name']
+  description text [null, note: 'Description']
+  sort_order int [not null, default: 0, note: 'Display order']
+
+  // Appearance
+  color varchar(7) [not null, default: '#0FA968', note: 'Color (HEX)']
+  icon varchar(50) [null, note: 'Icon name']
+
+  // Statistics
+  item_count int [not null, default: 0, note: 'Item count']
+
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    (user_id, parent_id) [name: 'idx_user_parent']
+    (parent_id, sort_order) [name: 'idx_parent_order']
+  }
+
+  Note: 'Hierarchical categories for knowledge items'
+}
+
+Table knowledge_items {
+  id bigint [pk, increment]
+  user_id bigint [not null, ref: > users.id]
+  category_id bigint [not null, ref: > knowledge_categories.id]
+
+  // Item Information
+  title varchar(500) [not null, note: 'Title']
+  item_type enum('note', 'code_snippet', 'resource_link', 'exercise', 'attachment') [not null, default: 'note', note: 'Item type']
+
+  // Content
+  content longtext [null, note: 'Content (Markdown)']
+  code_language varchar(50) [null, note: 'Code language (for code_snippet)']
+  url varchar(2048) [null, note: 'Link URL (for resource_link)']
+
+  // Exercise Fields
+  question text [null, note: 'Question text']
+  answer text [null, note: 'Answer']
+  difficulty enum('easy', 'medium', 'hard') [null, note: 'Difficulty level']
+
+  // Attachment Fields
+  attachment_path varchar(500) [null, note: 'File path']
+  attachment_mime varchar(100) [null, note: 'MIME type']
+  attachment_size int [null, note: 'File size (bytes)']
+
+  // Tags & Relations
+  tags json [null, note: 'Tag array']
+  learning_path_id bigint [null, ref: > learning_paths.id, note: 'Related learning path']
+  source_task_id bigint [null, ref: > tasks.id, note: 'Source task']
+
+  // Spaced Repetition
+  review_count int [not null, default: 0, note: 'Review count']
+  last_reviewed_at timestamp [null, note: 'Last review timestamp']
+  next_review_date date [null, note: 'Next review date']
+  retention_score tinyint [not null, default: 3, note: 'Retention score (1-5)']
+
+  // AI Features
+  ai_summary text [null, note: 'AI-generated summary']
+
+  // Metadata
+  view_count int [not null, default: 0, note: 'View count']
+  is_favorite boolean [not null, default: false, note: 'Favorite flag']
+  is_archived boolean [not null, default: false, note: 'Archived flag']
+
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    (user_id, category_id) [name: 'idx_user_category']
+    (user_id, item_type) [name: 'idx_user_type']
+    (user_id, is_favorite) [name: 'idx_user_favorite']
+    (user_id, next_review_date) [name: 'idx_next_review']
+    (user_id, created_at) [name: 'idx_user_created']
+    learning_path_id [name: 'idx_learning_path']
+    source_task_id [name: 'idx_source_task']
+  }
+
+  Note: 'Personal knowledge base - stores notes, code snippets, links, exercises, and files. Fulltext index on (title, content) exists as idx_fulltext_search'
+}
+
+Table knowledge_item_tags {
+  id bigint [pk, increment]
+  knowledge_item_id bigint [not null, ref: > knowledge_items.id]
+  tag_name varchar(100) [not null, note: 'Tag name']
+  created_at timestamp [null]
+
+  indexes {
+    (knowledge_item_id, tag_name) [unique, name: 'idx_knowledge_item_tag_unique']
+    tag_name [name: 'idx_tag_name']
+  }
+
+  Note: 'Tags for knowledge items'
+}
+
+// ============================================================================
+// SECTION 5: FOCUS & PRODUCTIVITY
+// ============================================================================
+
+Table focus_sessions {
+  id bigint [pk, increment]
+  user_id bigint [not null, ref: > users.id]
+  task_id bigint [not null, ref: > tasks.id]
+
+  // Session Type
+  session_type enum('work', 'break', 'long_break') [not null, default: 'work', note: 'Session type: work, short break, long break']
+
+  // Duration
+  duration_minutes int [not null, note: 'Planned duration (minutes)']
+  actual_minutes int [null, note: 'Actual duration (minutes)']
+
+  // Timestamps
+  started_at timestamp [not null, note: 'Start time']
+  ended_at timestamp [null, note: 'End time']
+
+  // Status & Quality
+  status enum('active', 'completed', 'paused', 'cancelled') [not null, default: 'active', note: 'Session status']
+  notes text [null, note: 'Notes']
+  quality_score tinyint [null, note: 'Quality score (1-5)']
+
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    (user_id, started_at) [name: 'idx_user_started_at']
+    task_id [name: 'idx_task_id']
+    (user_id, status) [name: 'idx_user_status']
+  }
+
+  Note: 'Pomodoro/focus session tracking'
+}
+
+Table focus_environments {
+  id bigint [pk, increment]
+  task_id bigint [not null, ref: > tasks.id]
+  user_id bigint [not null, ref: > users.id]
+  focus_session_id bigint [null, ref: > focus_sessions.id]
+
+  // Environment Checklist
+  quiet_space boolean [not null, default: false]
+  phone_silent boolean [not null, default: false]
+  materials_ready boolean [not null, default: false]
+  water_coffee_ready boolean [not null, default: false]
+  comfortable_position boolean [not null, default: false]
+  notifications_off boolean [not null, default: false]
+  apps_closed json [null, note: 'List of apps/tabs closed']
+
+  // Status
+  all_checks_passed boolean [not null, default: false]
+  notes text [null]
+
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    task_id [name: 'idx_task_id']
+    user_id [name: 'idx_user_id']
+    (user_id, created_at) [name: 'idx_user_created']
+  }
+
+  Note: 'Focus environment checklist for deep work preparation'
+}
+
+Table distraction_logs {
+  id bigint [pk, increment]
+  task_id bigint [not null, ref: > tasks.id]
+  user_id bigint [not null, ref: > users.id]
+  focus_session_id bigint [null, ref: > focus_sessions.id]
+
+  // Distraction Details
+  distraction_type enum('phone', 'social_media', 'noise', 'person', 'thoughts', 'hunger_thirst', 'fatigue', 'other') [not null, default: 'other']
+  duration_seconds int [null, note: 'How long the distraction lasted']
+  notes text [null]
+
+  // Timing
+  occurred_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+  time_of_day time [null, note: 'What time of day did distraction occur']
+
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    task_id [name: 'idx_task_id']
+    user_id [name: 'idx_user_id']
+    distraction_type [name: 'idx_distraction_type']
+    (user_id, occurred_at) [name: 'idx_user_occurred']
+  }
+
+  Note: 'Logs distractions during focus sessions for analysis'
+}
+
+Table context_switches {
+  id bigint [pk, increment]
+  user_id bigint [not null, ref: > users.id]
+
+  // From Task
+  from_task_id bigint [null, ref: > tasks.id]
+  from_category varchar(255) [null]
+  from_focus_difficulty int [null]
+
+  // To Task
+  to_task_id bigint [not null, ref: > tasks.id]
+  to_category varchar(255) [null]
+  to_focus_difficulty int [null]
+
+  // Context Switch Details
+  is_significant_switch boolean [not null, default: false, note: 'Different category or focus level']
+  estimated_cost_minutes int [not null, default: 23, note: 'Estimated recovery time']
+  user_proceeded boolean [not null, default: false, note: 'Did user proceed despite warning']
+  user_note text [null]
+
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    user_id [name: 'idx_user_id']
+    (user_id, created_at) [name: 'idx_user_created']
+    is_significant_switch [name: 'idx_is_significant']
+  }
+
+  Note: 'Tracks context switches between tasks to measure productivity cost'
+}
+
+// ============================================================================
+// SECTION 6: TIMETABLE & SCHEDULE
+// ============================================================================
+
+Table timetable_classes {
+  id bigint [pk, increment]
+  user_id bigint [not null, ref: > users.id]
+
+  // Class Information
+  name varchar(255) [not null, note: 'Class name']
+  description text [null, note: 'Detailed description']
+  room varchar(100) [null, note: 'Classroom']
+  instructor varchar(255) [null, note: 'Instructor name']
+
+  // Schedule
+  day enum('monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday') [not null, note: 'Day of week']
+  period int [not null, note: 'Period (1-10)']
+  start_time time [not null, note: 'Start time']
+  end_time time [not null, note: 'End time']
+
+  // Appearance
+  color varchar(7) [not null, default: '#4F46E5', note: 'Color (HEX)']
+  icon varchar(50) [null, note: 'Icon name']
+
+  // Notes
+  notes text [null, note: 'Notes']
+
+  // Relations
+  learning_path_id bigint [null, ref: > learning_paths.id, note: 'Related learning path']
+
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    (user_id, day, period) [name: 'idx_user_day_period']
+    (user_id, created_at) [name: 'idx_user_created']
+  }
+
+  Note: 'Class schedule management'
+}
+
+Table timetable_studies {
+  id bigint [pk, increment]
+  user_id bigint [not null, ref: > users.id]
+  timetable_class_id bigint [null, ref: > timetable_classes.id, note: 'Related class']
+
+  // Study Information
+  title varchar(255) [not null, note: 'Title']
+  description text [null, note: 'Detailed description']
+  type enum('homework', 'review', 'exam', 'project') [not null, default: 'homework', note: 'Type']
+
+  // Subject
+  subject varchar(255) [null, note: 'Subject name']
+
+  // Deadline & Priority
+  due_date date [null, note: 'Submission deadline']
+  priority int [not null, default: 3, note: 'Priority (1-5)']
+
+  // Status
+  status enum('pending', 'in_progress', 'completed') [not null, default: 'pending', note: 'Status']
+  completed_at timestamp [null, note: 'Completion timestamp']
+
+  // Task Relation
+  task_id bigint [null, ref: > tasks.id, note: 'Related task']
+
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    (user_id, status) [name: 'idx_user_status']
+    (user_id, due_date) [name: 'idx_user_due_date']
+    (user_id, type) [name: 'idx_user_type']
+  }
+
+  Note: 'Homework, review, exam, and project management'
+}
+
+Table timetable_class_weekly_contents {
+  id bigint [pk, increment]
+  timetable_class_id bigint [not null, ref: > timetable_classes.id, note: 'Class ID']
+
+  // Week Information
+  year int [not null, note: 'Year']
+  week_number int [not null, note: 'Week number (1-53)']
+  week_start_date date [not null, note: 'Week start date (Monday)']
+
+  // Weekly Content
+  title varchar(255) [null, note: 'Weekly title']
+  content text [null, note: 'Weekly content/topics']
+  homework text [null, note: 'Homework']
+  notes text [null, note: 'Weekly notes']
+
+  // Progress
+  status enum('scheduled', 'completed', 'cancelled') [not null, default: 'scheduled', note: 'Status']
+
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    (timetable_class_id, year, week_number) [name: 'idx_class_year_week']
+    week_start_date [name: 'idx_week_start']
+    (timetable_class_id, year, week_number) [unique, name: 'unique_class_week']
+  }
+
+  Note: 'Weekly class content management'
+}
+
+// ============================================================================
+// SECTION 7: CHAT & AI
+// ============================================================================
+
+Table chat_conversations {
+  id bigint [pk, increment]
+  user_id bigint [not null, ref: > users.id]
+  title varchar(255) [null, note: 'Auto-generated or user-set title']
+  status varchar(255) [not null, default: 'active', note: 'active, archived, deleted']
+  last_message_at timestamp [null]
+  message_count int [not null, default: 0]
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    user_id [name: 'idx_user_id']
+    (user_id, status) [name: 'idx_user_status']
+    (user_id, last_message_at) [name: 'idx_user_last_message']
+  }
+
+  Note: 'AI chat conversation sessions'
+}
+
+Table chat_messages {
+  id bigint [pk, increment]
+  conversation_id bigint [not null, ref: > chat_conversations.id]
+  user_id bigint [not null, ref: > users.id]
+  role enum('user', 'assistant', 'system') [not null, default: 'user', note: 'Message sender role']
+  content text [not null]
+  metadata json [null, note: 'Additional data like tokens used, model, etc.']
+  token_count int [null, note: 'For tracking API usage']
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    conversation_id [name: 'idx_conversation_id']
+    (conversation_id, created_at) [name: 'idx_conversation_created']
+  }
+
+  Note: 'Individual messages in chat conversations'
+}
+
+// ============================================================================
+// SECTION 8: CHEAT CODE / LEARNING RESOURCES
+// ============================================================================
+
+Table cheat_code_languages {
+  id bigint [pk, increment]
+
+  // Language Information
+  name varchar(100) [not null, unique, note: 'Language name (php, java, python)']
+  display_name varchar(100) [not null, note: 'Display name (PHP, Java, Python)']
+  slug varchar(100) [not null, unique, note: 'URL slug']
+
+  // Display Settings
+  icon varchar(255) [null, note: 'Icon URL']
+  color varchar(20) [not null, default: '#000000', note: 'Color (HEX)']
+
+  // Metadata
+  description text [null, note: 'Description']
+  popularity int [not null, default: 0, note: 'Popularity (0-100)']
+  category varchar(50) [not null, default: 'programming', note: 'Category (programming, markup, database)']
+
+  // Statistics
+  sections_count int [not null, default: 0, note: 'Section count']
+  examples_count int [not null, default: 0, note: 'Code example count']
+  exercises_count int [not null, default: 0, note: 'Exercise count']
+
+  // Display Control
+  is_active boolean [not null, default: true, note: 'Display flag']
+  sort_order int [not null, default: 0, note: 'Sort order']
+
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    category [name: 'idx_category']
+    is_active [name: 'idx_is_active']
+    popularity [name: 'idx_popularity']
+  }
+
+  Note: 'Programming languages master data for cheat sheets'
+}
+
+Table cheat_code_sections {
+  id bigint [pk, increment]
+  language_id bigint [not null, ref: > cheat_code_languages.id, note: 'Language ID']
+
+  // Section Information
+  title varchar(200) [not null, note: 'Title (Getting Started, Variables)']
+  slug varchar(200) [not null, note: 'URL slug']
+  description text [null, note: 'Description']
+  icon varchar(255) [null, note: 'Icon']
+
+  // Statistics
+  examples_count int [not null, default: 0, note: 'Code example count']
+  sort_order int [not null, default: 0, note: 'Sort order']
+
+  // Publication Settings
+  is_published boolean [not null, default: true, note: 'Published flag']
+
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    (language_id, slug) [unique, name: 'idx_language_slug']
+    language_id [name: 'idx_language_id']
+    is_published [name: 'idx_is_published']
+  }
+
+  Note: 'Sections within each programming language (e.g., Getting Started, Variables)'
+}
+
+Table code_examples {
+  id bigint [pk, increment]
+  section_id bigint [not null, ref: > cheat_code_sections.id, note: 'Section ID']
+  language_id bigint [not null, ref: > cheat_code_languages.id, note: 'Language ID (denormalized)']
+
+  // Code Example Information
+  title varchar(200) [not null, note: 'Title (hello.php)']
+  slug varchar(200) [not null, note: 'URL slug']
+  code text [not null, note: 'Source code']
+  description text [null, note: 'Description']
+  output text [null, note: 'Execution result']
+
+  // Metadata
+  difficulty enum('easy', 'medium', 'hard') [not null, default: 'easy', note: 'Difficulty level']
+  tags json [null, note: 'Tag array']
+
+  // Statistics
+  views_count int [not null, default: 0, note: 'View count']
+  favorites_count int [not null, default: 0, note: 'Favorite count']
+  sort_order int [not null, default: 0, note: 'Sort order']
+
+  // Publication Settings
+  is_published boolean [not null, default: true, note: 'Published flag']
+
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    section_id [name: 'idx_section_id']
+    language_id [name: 'idx_language_id']
+    difficulty [name: 'idx_difficulty']
+    views_count [name: 'idx_views_count']
+  }
+
+  Note: 'Code examples/snippets for learning. Fulltext index on (title, description, code) exists as idx_fulltext_search'
+}
+
+Table exercises {
+  id bigint [pk, increment]
+  language_id bigint [not null, ref: > cheat_code_languages.id, note: 'Language ID']
+
+  // Exercise Information
+  title varchar(200) [not null, note: 'Title']
+  slug varchar(200) [not null, note: 'URL slug']
+  description text [not null, note: 'Description']
+  question text [not null, note: 'Question text']
+
+  // Code
+  starter_code text [null, note: 'Starter code']
+  solution text [null, note: 'Solution (hidden)']
+
+  // Metadata
+  hints json [null, note: 'Hints array']
+  difficulty enum('easy', 'medium', 'hard') [not null, default: 'medium', note: 'Difficulty level']
+  points int [not null, default: 10, note: 'Points']
+  tags json [null, note: 'Tag array']
+
+  // Constraints
+  time_limit int [not null, default: 60, note: 'Time limit (minutes)']
+
+  // Statistics
+  submissions_count int [not null, default: 0, note: 'Submission count']
+  success_count int [not null, default: 0, note: 'Success count']
+  success_rate decimal(5,2) [not null, default: 0.00, note: 'Success rate (%)']
+
+  // Publication Settings
+  is_published boolean [not null, default: true, note: 'Published flag']
+  sort_order int [not null, default: 0, note: 'Sort order']
+
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    (language_id, slug) [unique, name: 'idx_language_slug']
+    language_id [name: 'idx_language_id']
+    difficulty [name: 'idx_difficulty']
+    success_rate [name: 'idx_success_rate']
+  }
+
+  Note: 'Programming exercises for practice'
+}
+
+Table exercise_test_cases {
+  id bigint [pk, increment]
+  exercise_id bigint [not null, ref: > exercises.id, note: 'Exercise ID']
+
+  // Test Case Information
+  input text [not null, note: 'Input']
+  expected_output text [not null, note: 'Expected output']
+  description varchar(255) [null, note: 'Description']
+
+  // Display Settings
+  is_sample boolean [not null, default: false, note: 'Sample display flag']
+  is_hidden boolean [not null, default: false, note: 'Hidden flag']
+  sort_order int [not null, default: 0, note: 'Sort order']
+
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    exercise_id [name: 'idx_exercise_id']
+  }
+
+  Note: 'Test cases for validating exercise submissions'
+}
+
+Table user_exercise_submissions {
+  id bigint [pk, increment]
+  user_id bigint [not null, ref: > users.id, note: 'User ID']
+  exercise_id bigint [not null, ref: > exercises.id, note: 'Exercise ID']
+
+  // Submission Code
+  code text [not null, note: 'Submitted code']
+  language varchar(50) [not null, note: 'Language']
+
+  // Execution Results
+  status enum('pending', 'running', 'success', 'failed', 'error', 'timeout') [not null, default: 'pending', note: 'Status']
+  passed_test_cases int [not null, default: 0, note: 'Passed test case count']
+  total_test_cases int [not null, default: 0, note: 'Total test case count']
+  score int [not null, default: 0, note: 'Score']
+
+  // Performance
+  execution_time int [null, note: 'Execution time (milliseconds)']
+  memory_used int [null, note: 'Memory used (KB)']
+
+  // Error Information
+  error_message text [null, note: 'Error message']
+  test_results json [null, note: 'Test results details']
+
+  // Submission Time
+  submitted_at timestamp [not null, default: `CURRENT_TIMESTAMP`, note: 'Submission time']
+
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    user_id [name: 'idx_user_id']
+    exercise_id [name: 'idx_exercise_id']
+    status [name: 'idx_status']
+    submitted_at [name: 'idx_submitted_at']
+  }
+
+  Note: 'User code submission history for exercises'
+}
+
+Table user_code_favorites {
+  id bigint [pk, increment]
+  user_id bigint [not null, ref: > users.id, note: 'User ID']
+  code_example_id bigint [not null, ref: > code_examples.id, note: 'Code example ID']
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    (user_id, code_example_id) [unique, name: 'idx_user_code_example']
+  }
+
+  Note: 'User favorite code examples'
+}
+
+Table user_exercise_progress {
+  id bigint [pk, increment]
+  user_id bigint [not null, ref: > users.id, note: 'User ID']
+  exercise_id bigint [not null, ref: > exercises.id, note: 'Exercise ID']
+
+  // Progress Information
+  is_completed boolean [not null, default: false, note: 'Completion flag']
+  best_score int [not null, default: 0, note: 'Best score']
+  attempts_count int [not null, default: 0, note: 'Attempt count']
+
+  // Timestamps
+  last_attempted_at timestamp [null, note: 'Last attempt time']
+  completed_at timestamp [null, note: 'Completion time']
+
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    (user_id, exercise_id) [unique, name: 'idx_user_exercise']
+    (user_id, is_completed) [name: 'idx_user_is_completed']
+  }
+
+  Note: 'User exercise progress tracking'
+}
+
+// ============================================================================
+// SECTION 9: AI & ANALYTICS
+// ============================================================================
+
+Table ai_suggestions {
+  id bigint [pk, increment]
+  user_id bigint [not null, ref: > users.id]
+
+  // Suggestion Type
+  type enum('task_breakdown', 'daily_plan', 'smart_schedule', 'motivational') [not null, note: 'Suggestion type']
+
+  // Content (JSON)
+  content json [not null, note: 'Suggestion content (JSON format)']
+
+  // Source Task (optional)
+  source_task_id bigint [null, ref: > tasks.id]
+
+  // Feedback
+  is_accepted boolean [not null, default: false, note: 'User approved']
+  feedback_score tinyint [null, note: 'Feedback score (1-5)']
+
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    (user_id, type) [name: 'idx_user_type']
+    source_task_id [name: 'idx_source_task']
+    (user_id, created_at) [name: 'idx_user_created']
+  }
+
+  Note: 'AI-generated suggestions for tasks and productivity'
+}
+
+Table ai_interactions {
+  id bigint [pk, increment]
+  user_id bigint [not null, ref: > users.id]
+
+  // Interaction Type
+  interaction_type enum('breakdown', 'suggestion', 'coach', 'reschedule') [not null, note: 'AI interaction type']
+
+  // Request & Response Data
+  input_data json [not null, note: 'Input data (JSON)']
+  response_data json [not null, note: 'Response data (JSON)']
+
+  // Performance Tracking
+  processing_time_ms int [null, note: 'Processing time (milliseconds)']
+  success boolean [not null, default: true, note: 'Interaction success']
+
+  created_at timestamp [not null]
+
+  indexes {
+    (user_id, interaction_type) [name: 'idx_user_interaction_type']
+    created_at [name: 'idx_created_at']
+  }
+
+  Note: 'AI interaction logs for tracking and debugging'
+}
+
+Table ai_summaries {
+  id bigint [pk, increment]
+  user_id bigint [not null, ref: > users.id]
+
+  // Summary Type & Date
+  summary_type enum('daily', 'weekly', 'monthly') [not null, note: 'Summary type']
+  date date [not null, note: 'Summary date']
+
+  // Content & Metrics
+  content json [not null, note: 'AI summary content']
+  metrics json [null, note: 'Metrics information']
+
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    (user_id, summary_type) [name: 'idx_user_summary_type']
+    (user_id, date) [name: 'idx_user_date']
+    (user_id, summary_type, date) [unique, name: 'unique_user_summary_date']
+  }
+
+  Note: 'AI-generated daily/weekly/monthly summaries'
+}
+
+Table performance_metrics {
+  id bigint [pk, increment]
+  user_id bigint [not null, ref: > users.id]
+
+  // Metric Info
+  metric_date date [not null, note: 'Metric date']
+  metric_type enum('daily_completion', 'focus_time', 'mood_trend', 'streak_maintenance') [not null, note: 'Metric type']
+
+  // Metric Value
+  metric_value decimal(10,4) [not null, note: 'Metric value']
+
+  // Trend Analysis
+  trend_direction enum('up', 'down', 'stable') [null, note: 'Trend']
+  notes text [null, note: 'Notes']
+
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    (user_id, metric_type, metric_date) [name: 'idx_user_metric_type_date']
+    metric_date [name: 'idx_metric_date']
+  }
+
+  Note: 'Performance metrics for tracking user productivity'
+}
+
+// ============================================================================
+// SECTION 10: NOTIFICATIONS & ACTIVITY
+// ============================================================================
+
+Table notifications {
+  id bigint [pk, increment]
+  user_id bigint [not null, ref: > users.id]
+
+  // Notification Type
+  type enum('reminder', 'achievement', 'motivational', 'system') [not null, note: 'Notification type']
+
+  // Content
+  title varchar(255) [not null, note: 'Title']
+  message text [not null, note: 'Message']
+  data json [null, note: 'Additional data (JSON)']
+
+  // Status
+  is_read boolean [not null, default: false, note: 'Read status']
+
+  // Scheduling
+  scheduled_at timestamp [null, note: 'Scheduled send time']
+  sent_at timestamp [null, note: 'Sent time']
+
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    (user_id, is_read) [name: 'idx_user_is_read']
+    scheduled_at [name: 'idx_scheduled_at']
+    sent_at [name: 'idx_sent_at']
+  }
+
+  Note: 'User notifications and reminders'
+}
+
+Table activity_logs {
+  id bigint [pk, increment]
+  user_id bigint [not null, ref: > users.id]
+
+  // Action Info
+  action varchar(100) [not null, note: 'Action (e.g., task.created, session.completed)']
+
+  // Resource Info
+  resource_type varchar(50) [null, note: 'Resource type (e.g., Task, Session)']
+  resource_id bigint [null, note: 'Resource ID']
+
+  // Request Info
+  ip_address varchar(45) [null, note: 'IP address']
+  user_agent text [null, note: 'User agent']
+
+  // Additional Data
+  metadata json [null, note: 'Additional metadata (JSON)']
+
+  created_at timestamp [not null]
+
+  indexes {
+    (user_id, action) [name: 'idx_user_action']
+    (resource_type, resource_id) [name: 'idx_resource_type_id']
+    created_at [name: 'idx_created_at']
+  }
+
+  Note: 'Activity logs for user actions'
+}
+
+// ============================================================================
+// SECTION 11: DAILY CHECK-IN & REVIEW
+// ============================================================================
+
+Table daily_checkins {
+  id bigint [pk, increment]
+  user_id bigint [not null, ref: > users.id]
+
+  // Check-in Date
+  date date [not null, note: 'Check-in date']
+
+  // Morning State
+  energy_level enum('low', 'medium', 'high') [not null, note: 'Morning energy level']
+  mood_score tinyint [not null, note: 'Mood score (1-5)']
+  mood enum('excellent', 'good', 'average', 'poor', 'terrible') [null, note: 'Mood (enum)']
+
+  // Sleep and Stress
+  sleep_hours decimal(4,2) [null, note: 'Sleep hours']
+  stress_level enum('low', 'medium', 'high') [null, note: 'Stress level']
+
+  // Planning
+  schedule_note text [null, note: 'Today schedule note']
+  priorities json [null, note: 'Priorities (JSON array)']
+  goals json [null, note: 'Goals (JSON array)']
+  notes text [null, note: 'Notes']
+  ai_suggestions_generated boolean [not null, default: false, note: 'AI suggestions generated']
+
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    (user_id, date) [unique, name: 'idx_user_date']
+    date [name: 'idx_date']
+  }
+
+  Note: 'Daily morning check-in for planning'
+}
+
+Table daily_reviews {
+  id bigint [pk, increment]
+  user_id bigint [not null, ref: > users.id]
+
+  // Review Date
+  date date [not null, note: 'Review date']
+
+  // Mood
+  mood enum('excellent', 'good', 'average', 'poor', 'terrible') [null, note: 'Mood']
+
+  // Daily Stats
+  tasks_completed int [not null, default: 0, note: 'Completed task count']
+  focus_time_minutes int [not null, default: 0, note: 'Total focus time (minutes)']
+  productivity_score tinyint [null, note: 'Productivity score (1-10)']
+
+  // Individual Scores
+  focus_time_score tinyint [null, note: 'Focus time score (1-10)']
+  task_completion_score tinyint [null, note: 'Task completion score (1-10)']
+  goal_achievement_score tinyint [null, note: 'Goal achievement score (1-10)']
+  work_life_balance_score tinyint [null, note: 'Work-life balance score (1-10)']
+
+  // Reflection (JSON arrays)
+  achievements json [null, note: 'Achievements (JSON array)']
+  gratitude_note text [null, note: 'Gratitude note']
+  gratitude json [null, note: 'Gratitude (JSON array)']
+  challenges_faced text [null, note: 'Challenges faced']
+  challenges json [null, note: 'Challenges (JSON array)']
+  lessons_learned json [null, note: 'Lessons learned (JSON array)']
+  tomorrow_goals text [null, note: 'Tomorrow goals']
+  notes text [null, note: 'Notes']
+
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    (user_id, date) [unique, name: 'idx_user_date']
+    date [name: 'idx_date']
+  }
+
+  Note: 'Daily evening review for reflection'
+}
+
+// ============================================================================
+// SECTION 12: TEMPLATES
+// ============================================================================
+
+Table learning_path_templates {
+  id bigint [pk, increment]
+
+  // Template Information
+  title varchar(255) [not null, note: 'Template title']
+  description text [null, note: 'Description']
+
+  // Categorization
+  category enum('programming', 'design', 'business', 'language', 'data_science', 'other') [not null, default: 'other', note: 'Category']
+  difficulty enum('beginner', 'intermediate', 'advanced') [not null, default: 'beginner', note: 'Difficulty level']
+
+  // Estimation
+  estimated_hours_total int [null, note: 'Total estimated learning hours']
+
+  // Metadata
+  tags json [null, note: 'Tag array']
+  icon varchar(50) [null, note: 'Icon']
+  color varchar(7) [not null, default: '#0FA968', note: 'Color (HEX)']
+
+  // Popularity
+  is_featured boolean [not null, default: false, note: 'Featured template']
+  usage_count int [not null, default: 0, note: 'Usage count']
+
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    category [name: 'idx_category']
+    difficulty [name: 'idx_difficulty']
+    (is_featured, usage_count) [name: 'idx_featured_usage']
+  }
+
+  Note: 'Learning path templates for quick setup'
+}
+
+Table learning_milestone_templates {
+  id bigint [pk, increment]
+  template_id bigint [not null, ref: > learning_path_templates.id, note: 'Template ID']
+
+  // Milestone Information
+  title varchar(255) [not null, note: 'Milestone title']
+  description text [null, note: 'Description']
+  sort_order int [not null, default: 0, note: 'Sort order']
+
+  // Estimation
+  estimated_hours int [null, note: 'Estimated hours']
+
+  // Deliverables
+  deliverables json [null, note: 'Deliverable list']
+
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    (template_id, sort_order) [name: 'idx_template_sort_order']
+  }
+
+  Note: 'Milestone templates for learning path templates'
+}
+
+Table task_templates {
+  id bigint [pk, increment]
+  milestone_template_id bigint [not null, ref: > learning_milestone_templates.id, note: 'Milestone template ID']
+
+  // Task Information
+  title varchar(255) [not null, note: 'Task title']
+  description text [null, note: 'Description']
+  sort_order int [not null, default: 0, note: 'Sort order']
+
+  // Estimation
+  estimated_minutes int [null, note: 'Estimated time (minutes)']
+  priority tinyint [not null, default: 3, note: 'Priority (1-5)']
+
+  // Resources
+  resources json [null, note: 'Resources (links, videos, etc.)']
+
+  // Subtasks
+  subtasks json [null, note: 'Subtask list']
+
+  // Knowledge Items
+  knowledge_items json [null, note: 'Learning content (notes, code examples, links, exercises)']
+
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    (milestone_template_id, sort_order) [name: 'idx_milestone_template_sort_order']
+  }
+
+  Note: 'Task templates for milestone templates'
+}
+
+// ============================================================================
+// SECTION 13: AUTHENTICATION & SESSIONS
+// ============================================================================
+
+Table password_reset_tokens {
+  email varchar(255) [pk, note: 'Email address']
+  token varchar(255) [not null, note: 'Reset token']
+  created_at timestamp [null, note: 'Creation timestamp']
+
+  Note: 'Password reset tokens (Laravel built-in)'
+}
+
+Table password_resets {
+  id bigint [pk, increment]
+  email varchar(255) [not null]
+  token varchar(255) [not null]
+  created_at timestamp [null]
+
+  indexes {
+    email [name: 'idx_email']
+    (email, token) [name: 'idx_email_token']
+  }
+
+  Note: 'Password reset records'
+}
+
+Table personal_access_tokens {
+  id bigint [pk, increment]
+  tokenable_type varchar(255) [not null]
+  tokenable_id bigint [not null]
+  name text [not null]
+  token varchar(64) [not null, unique]
+  abilities text [null]
+  last_used_at timestamp [null]
+  expires_at timestamp [null]
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    (tokenable_type, tokenable_id) [name: 'idx_tokenable']
+    expires_at [name: 'idx_expires_at']
+  }
+
+  Note: 'Laravel Sanctum personal access tokens for API authentication'
+}
+
+Table sessions {
+  id varchar(255) [pk]
+  user_id bigint [null]
+  ip_address varchar(45) [null]
+  user_agent text [null]
+  payload longtext [not null]
+  last_activity int [not null]
+
+  indexes {
+    user_id [name: 'idx_user_id']
+    last_activity [name: 'idx_last_activity']
+  }
+
+  Note: 'Laravel HTTP sessions'
+}
+
+// ============================================================================
+// SECTION 14: CACHE
+// ============================================================================
+
+Table cache {
+  key varchar(255) [pk]
+  value mediumtext [not null]
+  expiration int [not null]
+
+  Note: 'Laravel cache storage'
+}
+
+Table cache_locks {
+  key varchar(255) [pk]
+  owner varchar(255) [not null]
+  expiration int [not null]
+
+  Note: 'Laravel cache locks'
+}
+
+// ============================================================================
+// END OF SCHEMA
+// Total Tables: 64
+// ============================================================================

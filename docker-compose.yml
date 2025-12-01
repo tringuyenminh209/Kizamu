@@ -1,0 +1,92 @@
+# Docker Compose for Kizamu AI App
+
+services:
+  app:
+    build: .
+    container_name: kizamu-backend
+    restart: unless-stopped
+    working_dir: /var/www
+    volumes:
+      - ./backend:/var/www
+      - ./docker/nginx.conf:/etc/nginx/sites-available/default
+      - ./docker/supervisord.conf:/etc/supervisor/conf.d/supervisord.conf
+    ports:
+      - "9001:80"
+    env_file:
+      - ./backend/.env
+    environment:
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - mysql
+      - redis
+    networks:
+      - kizamu-network
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+
+  # MySQL Database
+  mysql:
+    image: mysql:8.0
+    container_name: kizamu-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-kizamu_app}
+      MYSQL_USER: ${MYSQL_USER:-kizamu_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-123qwecc}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql/mysql.cnf:/etc/mysql/conf.d/mysql.cnf
+    ports:
+      - "9002:3306"
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    networks:
+      - kizamu-network
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+
+  #Redis Cache & Queue
+  redis:
+    image: redis:7-alpine
+    container_name: kizamu-redis
+    restart: unless-stopped
+    ports:
+      - "63790:6379"  # Changed port to avoid conflict with existing Redis
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    networks:
+      - kizamu-network
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  kizamu-network:
+    driver: bridge
