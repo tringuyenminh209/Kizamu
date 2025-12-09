@@ -142,4 +142,117 @@ class AuthController extends Controller
             'message' => 'ログイン成功！'
         ], 200);
     }
+
+    /**
+     * ログアウト処理
+     * POST api/logout
+     */
+    public function logout(Request $request){
+        $user = $request->user();
+
+        // セキュリティログ
+        Log::info("ユーザーがログアウトしました。", [
+            'user_id'   => $user->id,
+            'email'     => $user->email,
+            'ip'        => $request->ip(),
+        ]);
+
+        //　現在のトークンを削除
+        $request->user()->currentAccessToken()->delete();
+
+        return response()->json([
+            'message' => 'ログアウト成功'
+        ], 200);
+    }
+
+    /**
+     * トークンをリフレッシュ
+     * POST /api/refresh-token
+     */
+    public function refreshToken(Request $request){
+        $user = $request->user();
+
+        // 現在のトークンを削除
+        $request->user()->currentAccessToken()->delete();
+
+        // 新しいトークンを発行
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        // セキュリティログ
+        Log::info('トークンがリフレッシュされました',[
+            'user_id' => $user->id,
+            'email'   => $user->email,
+            'ip'      => $request->ip(),
+        ]);
+
+        return response()->json([
+            'user' => $user,
+            'token' => $token,
+            'message' => 'トークンが更新されました'
+        ],200);
+    }
+
+    /**
+     * 現在のユーザー情報を取得
+     * GET /api/user
+     */
+    public function getUser(Request $request){
+
+        $user = $request->user();
+
+        Log::info('getUser()が呼び出されまし', [
+            'user' => $user ? $user->toArray() : null
+
+        ]);
+
+        if(!$user){
+            $response = [
+                'success' => false,
+                'data' => null,
+                'message' => 'ユーザーが見つかりません',
+                'error' => 'ユーザーが見つかりません'
+            ];
+            Log::info('getUser()のレスポンス (見つかりません)', ['response' => $response]);
+
+            return response()->json($response, 404);
+        }
+
+        $response = [
+            'success' => true,
+            'data' => $user->toArray(),
+            'message' => 'ユーザー情報を取得しました',
+            'error' => null
+        ];
+
+        Log::info("getUser()のレスポンス (成功)", ['response' => $response]);
+        return response()->json($response, 200);
+    }
+
+    /**
+     * Update FCM Token
+     * POST /api/user/fcm-token
+     */
+
+    public function updateFCMToken(Request $request){
+        $request->validate([
+            'fmc_token' => 'required|string|max:500',
+        ]);
+
+        $user = $request->user();
+        $user->update(['fmc_token' => $request->fcm_token]);
+
+        Log::info("FCM token updated", [
+            'user_id' => $user->id,
+            'email' => $user->email,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'FCM token updated successfully',
+            'data' => [
+                'fcm_token' => $user->fcm_token
+            ]
+        ], 200);
+    }
+
 }
